@@ -1,0 +1,6 @@
+0   199.22   # xLo,  xHi
+0   195.96   # yLo,  yHi 
+0   30       # zLo,  zHi
+1.00E27      # number density - rho
+2.556        # Molecular Diameter (He)
+4.0026       # Molecular Mass     (He)

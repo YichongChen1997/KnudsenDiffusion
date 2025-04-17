@@ -1,0 +1,6 @@
+20000                           # nTimeSteps
+1.0       200    10             # deltaT >>  tSkip(dump interval) >> skipTimeStep
+0.0       12.0   500   3000     # xLo >> xDelta >> xLf >> xL
+12.0      30.0                  # rCut >> H
+300       300                   # Tg     >>  Tw
+4.0026    12.0107               # mG     >>  mW

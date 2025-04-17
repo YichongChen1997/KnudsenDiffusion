@@ -1,0 +1,85 @@
+#########################################################
+#      GAS
+#########################################################
+log             log.meas
+echo            both
+
+units           real  
+dimension       3 
+boundary        p p f 
+#atom_style      full
+
+neighbor        0.3 bin
+neigh_modify    delay 0  one 10000
+
+processors      8 8 2 
+read_restart    restart.*
+
+############################################################ INTERACTION
+group           GAS          type 1
+
+variable        rCut  equal 12
+variable        Ttop  equal 300
+variable        Tbot  equal 300
+
+pair_style      lj/cut ${rCut}
+pair_modify     shift yes mix arithmetic # Lorentz Berthelot rules 1 - 2
+
+pair_coeff      1 1 0.0203091 2.556 ${rCut}   # On gas-gas interactions
+# pair_coeff      1 1 0.000000 2.556 0.1   # Off gas-gas interactions
+############################################################ BOUDANRY (contain SIX free parameters)
+
+# Required by SKs
+variable  THETA     equal  0.0            # weight coefficient
+variable  Cn        equal  0.0            # constant for linearity
+
+variable  TalphaT0  equal  0.034          # intrinsic TMAC
+variable  TalphaEn0 equal  0.306          # intrinsic NEAC
+
+variable  BalphaT0  equal  0.034          # intrinsic TMAC
+variable  BalphaEn0 equal  0.306          # intrinsic NEAC
+
+variable  sigmaBar  equal  2.846          # the place for SKs
+
+# Required by LJ potentials
+variable  sigmaGSI      equal  3.31
+variable  epsilonGSI    equal  0.96
+variable  rCutGSI       equal  12
+
+fix    topWall    all  wall/enskog zhi EDGE ${epsilonGSI} ${sigmaGSI} ${rCutGSI} ${Ttop} ${THETA} ${Cn} ${TalphaT0} ${TalphaEn0} ${sigmaBar}
+fix    bottomWall all  wall/enskog zlo EDGE ${epsilonGSI} ${sigmaGSI} ${rCutGSI} ${Tbot} ${THETA} ${Cn} ${BalphaT0} ${BalphaEn0} ${sigmaBar}
+
+############################################################ ENSEMBLE
+
+fix             ENSEMBLE GAS nve
+
+############################################################ Poiseuille flow 
+
+variable        SIForce  equal 2.0e-14               # constant force for each atom in SI unit
+variable        refForce equal 69.4786e-12           # real unit convert to SI unit
+variable        forcePerAtom equal ${SIForce}/${refForce}
+fix             FIX_FORCE GAS addforce ${forcePerAtom} 0.0 0.0
+
+############################################################ RUN PARAMETERS
+
+compute         dstress GAS stress/atom NULL 
+compute         KE      GAS     ke/atom
+compute         PE      GAS     pe/atom
+compute         FORCE   GAS     property/atom fx fy fz
+
+#compute         mom GAS momentum
+#variable        mass_flow_x  equal  "c_mom[1]/lx"
+#fix             writeFile ave/time 1 1 5000 v_mass_flow_x file MFR.txt
+
+############################################################ DUMP DATA
+
+timestep        1.0
+thermo_style    custom step temp pe etotal press
+thermo          10000
+
+dump            1 GAS custom 200 dump_meas_gas.lammpstrj id type x y z vx vy vz c_dstress[1] c_dstress[2] c_dstress[3] c_KE c_PE c_FORCE[1] c_FORCE[2] c_FORCE[3]
+dump_modify     1 sort id
+
+run             2000000 every 2000000 "write_restart restart.*"
+
+undump          1

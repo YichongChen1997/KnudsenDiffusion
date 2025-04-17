@@ -1,0 +1,95 @@
+############################################################
+#               GAS  
+############################################################
+log             log.meas
+echo            both
+
+units           real
+dimension       3
+boundary        p p p
+# atom_style      full
+
+neighbor        0.3 bin
+#neigh_modify    every 1 delay 1 check yes
+neigh_modify    delay 0  one 10000
+
+processors      16 8 4
+read_restart    restart.*
+
+############################################################ INTERACTION
+group        GAS          type 1
+
+region       botBase      block   512  5512   EDGE  EDGE  EDGE  0     side out open 3 open 4
+region       topBase      block   512  5512   EDGE  EDGE  30    EDGE  side out open 3 open 4
+
+variable     rCut  equal  12
+variable     Ttop  equal  300
+variable     Tbot  equal  300
+variable     Tg    equal  300
+
+variable     epsilonGas  equal  0.0203091
+variable     sigmaGas    equal  2.556
+
+variable     epsilonWall equal  0.055645088
+variable     sigmaWall   equal  1.4
+
+variable     epsilonGSI  equal  0.072871313
+variable     sigmaGSI    equal  2.9
+
+pair_style   lj/cut ${rCut}
+pair_modify  shift yes mix arithmetic # Lorentz Berthelot rules 1 - 2
+
+pair_coeff   1 1 ${epsilonGas}   ${sigmaGas}   ${rCut}
+# pair_coeff   1 1 0.0000 ${sigmaGas} 0.1
+
+############################################################ BOUDANRY (contain SIX free parameters)
+
+# Required by SKs
+variable  THETA     equal  1.0            # weight coefficient
+variable  Cn        equal  1.0            # constant for linearity
+
+variable  TalphaT0  equal  0.034          # intrinsic TMAC
+variable  TalphaEn0 equal  0.306          # intrinsic NEAC
+
+variable  BalphaT0  equal  0.034          # intrinsic TMAC
+variable  BalphaEn0 equal  0.306          # intrinsic NEAC
+
+variable  sigmaBar  equal  2.846          # the place for SKs
+
+# Required by LJ potentials
+variable  sigmaGSI      equal  3.35
+variable  epsilonGSI    equal  0.00
+variable  rCutGSI       equal  12
+
+#fix    topDomain    GAS  wall/reflect zhi EDGE
+#fix    bottomDomain GAS  wall/reflect zlo EDGE
+
+fix    semiWall     GAS  wall/semiReflect xlo ${rCut}
+
+fix    botBaseWall  GAS region/pro botBase lj93 ${epsilonGSI} ${sigmaGSI} ${rCutGSI} ${sigmaBar} ${Tbot} ${THETA} ${Cn} ${BalphaT0} ${BalphaEn0}
+fix    topBaseWall  GAS region/pro topBase lj93 ${epsilonGSI} ${sigmaGSI} ${rCutGSI} ${sigmaBar} ${Ttop} ${THETA} ${Cn} ${TalphaT0} ${TalphaEn0}
+
+############################################################## RUN PARAMETERS
+fix             1 GAS    nve
+
+##############################################################
+compute         dstress GAS     stress/atom NULL
+compute         KE      GAS     ke/atom
+compute         PE      GAS     pe/atom
+compute         FORCE   GAS     property/atom fx fy fz
+
+# compute         mom GAS momentum
+# variable        mass_flow_x  equal  "c_mom[1]/lx"
+# fix             writeFile ave/time 100 5 10000 v_mass_flow_x file MFR.txt
+##############################################################
+
+timestep        1.0
+thermo_style    custom step temp pe etotal press
+thermo          10000
+
+dump            1 GAS custom 200 dump_meas_gas.lammpstrj id type x y z vx vy vz c_dstress[1] c_dstress[2] c_dstress[3] c_KE c_PE c_FORCE[1] c_FORCE[2] c_FORCE[3]
+dump_modify     1 sort id
+
+run             5000000 every 5000000 "write_restart restart.*"
+
+undump          1

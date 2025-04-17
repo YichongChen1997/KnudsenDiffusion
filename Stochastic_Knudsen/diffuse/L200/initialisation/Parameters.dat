@@ -1,0 +1,6 @@
+0      12.0    500    200    12.0      # xLo >> xDelta >> xLf >> xL >> xLv
+0      200                             # yLo >> yHi
+-100   100                             # zLo >> zHi
+30.0   12.0                            # H >> rCut
+1.00E26                                # number density - rho
+2.556  4.0026                          # sigmaG >> mGas  (He)

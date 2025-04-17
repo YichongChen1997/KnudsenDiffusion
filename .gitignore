@@ -1,0 +1,11 @@
+*.lammpstrj
+*.log
+data.dat
+restart.*
+apprepo
+log*
+a.out
+*.txt
+*.trj
+*.out
+*.xyz

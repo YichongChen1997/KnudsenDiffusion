@@ -1,0 +1,7 @@
+0    200          # xLo,  xHi
+0    200          # yLo,  yHi 
+30   12   12      # channel height >> cutoff distance >> wall thickness
+1.00E27           # number density - rho
+2.556             # Molecular Diameter     (He)
+12.0107           # molecular Mass of Wall (C)
+4.0026            # molecular Mass of Gas  (He)

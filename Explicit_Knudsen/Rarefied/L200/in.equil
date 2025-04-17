@@ -1,0 +1,110 @@
+############################################################
+#      GAS  
+############################################################
+log             log.equil
+echo            both
+
+units           real
+dimension       3
+boundary        p p p
+atom_style      full
+
+neighbor        0.3 bin
+#neigh_modify    every 1 delay 1 check yes
+neigh_modify    delay 0  one 10000
+
+processors      16 8 4
+read_data       data.dat
+
+############################################################ INTERACTION
+group        GAS              type 1
+group        wallB            type 2
+group        wallT            type 3
+
+group        wall union wallB wallT
+
+region       botBase      block   512  712   EDGE  EDGE  EDGE  -12   side out open 3 open 4
+region       topBase      block   512  712   EDGE  EDGE  42    EDGE  side out open 3 open 4
+
+variable     rCut  equal  12
+variable     Ttop  equal  300
+variable     Tbot  equal  300
+variable     Tg    equal  300
+
+variable     epsilonGas  equal  0.0203091
+variable     sigmaGas    equal  2.556
+
+variable     epsilonWall equal  0.055645088
+variable     sigmaWall   equal  1.4
+
+variable     epsilonGSI  equal  0.072871313
+variable     sigmaGSI    equal  2.9
+
+pair_style   lj/cut ${rCut}
+pair_modify  shift yes mix arithmetic # Lorentz Berthelot rules 1 - 2
+
+pair_coeff   1 1 ${epsilonGas}   ${sigmaGas}   ${rCut}
+
+pair_coeff   2 2 ${epsilonWall}  ${sigmaWall}  ${rCut}  # wall-wall
+pair_coeff   3 3 ${epsilonWall}  ${sigmaWall}  ${rCut}  # wall-wall
+
+# LB mixing
+pair_coeff   1 2 ${epsilonGSI}   ${sigmaGSI}   ${rCut}  # gas-surface imp
+pair_coeff   1 3 ${epsilonGSI}   ${sigmaGSI}   ${rCut}  # gas-surface imp
+
+pair_coeff   2 3 ${epsilonWall}  ${sigmaWall}  ${rCut}  # wall-wall
+
+############################################################ BOUDANRY (contain SIX free parameters)
+
+# Required by SKs
+variable  THETA     equal  0.0            # weight coefficient
+variable  Cn        equal  0.0            # constant for linearity
+
+variable  TalphaT0  equal  0.034          # intrinsic TMAC
+variable  TalphaEn0 equal  0.306          # intrinsic NEAC
+
+variable  BalphaT0  equal  0.034          # intrinsic TMAC
+variable  BalphaEn0 equal  0.306          # intrinsic NEAC
+
+variable  sigmaBar  equal  2.846          # the place for SKs
+
+# Required by LJ potentials
+variable  sigmaGSI      equal  3.35
+variable  epsilonGSI    equal  1.03
+variable  rCutGSI       equal  12
+
+#fix    topDomain    GAS  wall/reflect zhi EDGE
+#fix    bottomDomain GAS  wall/reflect zlo EDGE
+
+fix    semiWall     GAS  wall/semiReflect xlo ${rCut}
+
+fix    botBaseWall  GAS region/pro botBase lj93 ${epsilonGSI} ${sigmaGSI} ${rCutGSI} ${sigmaBar} ${Tbot} ${THETA} ${Cn} ${BalphaT0} ${BalphaEn0}
+fix    topBaseWall  GAS region/pro topBase lj93 ${epsilonGSI} ${sigmaGSI} ${rCutGSI} ${sigmaBar} ${Ttop} ${THETA} ${Cn} ${TalphaT0} ${TalphaEn0}
+
+############################################################ RUN PARAMETERS
+velocity        GAS     create ${Tg} 482748 dist gaussian mom yes
+
+# Fix the temperture of gas and wall atoms
+fix             1 GAS    nvt temp ${Tg} ${Tg} 100
+
+fix             2 wall   spring/self 100.0
+
+fix             3 wallB  nve
+fix             4 wallT  nve
+fix             5 wallB  langevin ${Tbot} ${Tbot} 50 1230917 zero yes
+fix             6 wallT  langevin ${Ttop} ${Ttop} 50 1230917 zero yes
+
+timestep        1.0
+thermo_style    custom step temp pe etotal press
+thermo          2000
+
+dump            1 GAS custom 1000 dump_equil_gas.lammpstrj id type x y z vx vy vz 
+dump_modify     1 sort id
+
+dump            2 wall custom 1000 dump_equil_wall.lammpstrj id type x y z vx vy vz
+dump_modify     2 sort id
+
+run             10000 every 10000 "write_restart restart.*"
+
+undump          1
+undump          2
